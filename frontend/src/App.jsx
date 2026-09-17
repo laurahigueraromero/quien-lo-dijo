@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import LobbyPage from './pages/LobbyPage';
 import LoginPage from './pages/LoginPage';
+import QuestionSubmissionPage from './pages/QuestionSubmissionPage';
 import RegisterPage from './pages/RegisterPage';
 import WaitingRoomPage from './pages/WaitingRoomPage';
 import './App.css';
@@ -16,6 +17,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<LobbyPage />} />
           <Route path="/rooms/:code" element={<WaitingRoomPage />} />
+          <Route path="/rooms/:code/questions" element={<QuestionSubmissionPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

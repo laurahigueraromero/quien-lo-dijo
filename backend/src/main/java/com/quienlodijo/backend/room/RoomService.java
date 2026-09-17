@@ -63,12 +63,12 @@ public class RoomService {
 
     @Transactional(readOnly = true)
     public RoomStateResponse getRoomState(String code) {
-        return toRoomState(findRoomOrThrow(code));
+        return toRoomState(getRoomOrThrow(code));
     }
 
     @Transactional
     public RoomStateResponse joinRoom(String code, User user) {
-        Room room = findRoomOrThrow(code);
+        Room room = getRoomOrThrow(code);
         if (room.getStatus() != RoomStatus.WAITING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La partida ya ha comenzado");
         }
@@ -82,7 +82,7 @@ public class RoomService {
 
     @Transactional
     public RoomStateResponse startRoom(String code, User user) {
-        Room room = findRoomOrThrow(code);
+        Room room = getRoomOrThrow(code);
         requireHost(room, user);
         if (room.getStatus() != RoomStatus.WAITING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "La partida ya ha comenzado");
@@ -94,7 +94,6 @@ public class RoomService {
                     "Se necesitan al menos " + MIN_PLAYERS_TO_START + " jugadores para empezar");
         }
         room.setStatus(RoomStatus.COLLECTING_QUESTIONS);
-        room.setStartedAt(Instant.now());
         room = roomRepository.save(room);
         RoomStateResponse state = toRoomState(room);
         broadcastRoomState(code, state);
@@ -103,7 +102,7 @@ public class RoomService {
 
     @Transactional
     public void closeRoom(String code, User user) {
-        Room room = findRoomOrThrow(code);
+        Room room = getRoomOrThrow(code);
         requireHost(room, user);
         if (room.getStatus() != RoomStatus.WAITING) {
             throw new ResponseStatusException(
@@ -126,10 +125,21 @@ public class RoomService {
         roomPlayerRepository.save(player);
     }
 
-    private Room findRoomOrThrow(String code) {
+    /** Público para que otros servicios de la misma partida (ej. QuestionService, Fase 3) reutilicen la búsqueda. */
+    public Room getRoomOrThrow(String code) {
         return roomRepository
                 .findByCode(code)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sala no encontrada"));
+    }
+
+    /** Reemite el snapshot actual de la sala por WebSocket (T011); usado tras cambios hechos desde otros servicios. */
+    public void broadcastRoomState(Room room) {
+        broadcastRoomState(room.getCode(), toRoomState(room));
+    }
+
+    /** Persiste cambios hechos sobre un {@link Room} desde otro servicio (ej. QuestionService, Fase 3). */
+    public Room saveRoom(Room room) {
+        return roomRepository.save(room);
     }
 
     private void requireHost(Room room, User user) {

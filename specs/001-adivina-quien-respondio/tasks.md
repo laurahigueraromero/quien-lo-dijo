@@ -70,16 +70,19 @@ Convenciones:
 
 ---
 
-## Fase 3 — Fase de preguntas (US-3)
+## Fase 3 — Fase de preguntas ✅ Completada (US-3)
 
-- **T013.** Endpoint `POST /api/rooms/{code}/questions` (recibe N textos = `questionsPerPlayer`, crea `Question` por jugador; valida que la sala esté en `COLLECTING_QUESTIONS`).
+- **T013. ✅** Endpoint `POST /api/rooms/{code}/questions` (recibe N textos = `questionsPerPlayer`, crea `Question` por jugador; valida que la sala esté en `COLLECTING_QUESTIONS`).
   *Depende de:* T010. *Cubre:* US-3. *Hecho cuando:* un jugador puede enviar sus preguntas y no puede reenviar/editar tras confirmarlas.
+  *Nota:* verificado con curl: 409 si la sala aún está en `WAITING`, 400 si el número de preguntas no coincide con `questionsPerPlayer`, 200 al enviar correctamente, 409 al reenviar.
 
-- **T014.** Lógica de transición: cuando todos los `RoomPlayer` de la sala han enviado sus preguntas, el backend asigna `playOrder` aleatorio a todas las `Question` y pasa `Room.status = IN_PROGRESS`, arrancando la primera ronda (ver Fase 4).
+- **T014. ✅** Lógica de transición: cuando todos los `RoomPlayer` de la sala han enviado sus preguntas, el backend asigna `playOrder` aleatorio a todas las `Question` y pasa `Room.status = IN_PROGRESS`, arrancando la primera ronda (ver Fase 4).
   *Depende de:* T013. *Cubre:* US-3. *Hecho cuando:* al enviar la última pregunta pendiente, la sala arranca automáticamente sin acción manual del host.
+  *Nota:* la creación de la primera `Round` (fase ANSWERING) queda para T016 (Fase 4, marcado con TODO en `QuestionService`); aquí solo se deja `Room.status = IN_PROGRESS` con las preguntas ya barajadas. `Room.startedAt` se redefinió para marcar este momento (cuando arranca de verdad la partida) en vez de cuando el host pulsa "Iniciar" (eso solo abre la fase de preguntas). Verificado con curl: con 3 jugadores y `questionsPerPlayer=2`, la sala permanece en `COLLECTING_QUESTIONS` tras las dos primeras entregas y pasa a `IN_PROGRESS` exactamente al recibir la última.
 
-- **T015. [P]** Pantalla React de envío de preguntas (formulario con N campos) + indicador de "esperando a los demás" tras enviar.
+- **T015. [P] ✅** Pantalla React de envío de preguntas (formulario con N campos) + indicador de "esperando a los demás" tras enviar.
   *Depende de:* T007, T012. *Cubre:* US-3. *Hecho cuando:* un jugador ve confirmación de envío y la app le informa cuando arranca la partida.
+  *Nota:* `QuestionSubmissionPage` en `/rooms/:code/questions`; `WaitingRoomPage` redirige aquí en cuanto la sala deja `WAITING`. Muestra un placeholder cuando `status` pasa a `IN_PROGRESS` (el motor de rondas real es la Fase 4). Build y lint limpios.
 
 ---
 

@@ -50,6 +50,7 @@ public class Room {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** Momento en que status pasa a IN_PROGRESS (T014), no cuando el host pulsa "Iniciar" (eso solo abre la fase de preguntas). */
     private Instant startedAt;
 
     private Instant finishedAt;

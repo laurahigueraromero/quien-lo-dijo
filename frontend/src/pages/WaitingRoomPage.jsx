@@ -47,6 +47,14 @@ export default function WaitingRoomPage() {
     }
   }, [event, navigate]);
 
+  // En cuanto el host inicia la partida, esta sala pasa a COLLECTING_QUESTIONS
+  // y cada jugador debe aportar sus preguntas (spec.md US-3, T013-T015).
+  useEffect(() => {
+    if (room && room.status !== 'WAITING') {
+      navigate(`/rooms/${code}/questions`, { replace: true });
+    }
+  }, [room, code, navigate]);
+
   async function handleStart() {
     setError(null);
     setStarting(true);
@@ -112,9 +120,7 @@ export default function WaitingRoomPage() {
             )}
           </>
         ) : (
-          <p className="waiting-room-hint">
-            ¡Partida iniciada! La fase de preguntas se implementa en la siguiente fase (Fase 3).
-          </p>
+          <p className="waiting-room-hint">Redirigiendo a la fase de preguntas…</p>
         )}
       </div>
     </div>
