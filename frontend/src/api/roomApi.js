@@ -22,3 +22,10 @@ export function startRoom(code) {
 export function closeRoom(code) {
   return apiFetch(`/rooms/${code}`, { method: 'DELETE' });
 }
+
+export function submitQuestions(code, questions) {
+  return apiFetch(`/rooms/${code}/questions`, {
+    method: 'POST',
+    body: JSON.stringify({ questions }),
+  });
+}

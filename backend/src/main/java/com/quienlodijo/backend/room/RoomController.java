@@ -3,6 +3,7 @@ package com.quienlodijo.backend.room;
 import com.quienlodijo.backend.domain.User;
 import com.quienlodijo.backend.room.dto.CreateRoomRequest;
 import com.quienlodijo.backend.room.dto.RoomStateResponse;
+import com.quienlodijo.backend.room.dto.SubmitQuestionsRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,15 +16,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Crear/unirse/arrancar/cerrar salas (spec.md US-1/US-2, plan.md §4, T008-T010). */
+/** Crear/unirse/arrancar/cerrar salas y enviar preguntas (spec.md US-1/US-2/US-3, plan.md §4, T008-T010, T013). */
 @RestController
 @RequestMapping("/api/rooms")
 public class RoomController {
 
     private final RoomService roomService;
+    private final QuestionService questionService;
 
-    public RoomController(RoomService roomService) {
+    public RoomController(RoomService roomService, QuestionService questionService) {
         this.roomService = roomService;
+        this.questionService = questionService;
     }
 
     @PostMapping
@@ -46,6 +49,12 @@ public class RoomController {
     @PostMapping("/{code}/start")
     public RoomStateResponse start(@PathVariable String code, @AuthenticationPrincipal User user) {
         return roomService.startRoom(code, user);
+    }
+
+    @PostMapping("/{code}/questions")
+    public RoomStateResponse submitQuestions(
+            @PathVariable String code, @AuthenticationPrincipal User user, @Valid @RequestBody SubmitQuestionsRequest request) {
+        return questionService.submitQuestions(code, user, request.questions());
     }
 
     @DeleteMapping("/{code}")
