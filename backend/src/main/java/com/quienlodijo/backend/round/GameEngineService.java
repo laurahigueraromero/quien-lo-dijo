@@ -16,10 +16,14 @@ import com.quienlodijo.backend.repository.RoundRepository;
 import com.quienlodijo.backend.repository.UserRepository;
 import com.quienlodijo.backend.room.RoomService;
 import com.quienlodijo.backend.room.dto.RoomEvent;
+import com.quienlodijo.backend.round.dto.BetResultDto;
+import com.quienlodijo.backend.round.dto.PlayerBalanceDto;
 import com.quienlodijo.backend.round.dto.RoundAnsweringStartedEvent;
 import com.quienlodijo.backend.round.dto.RoundBettingStartedEvent;
+import com.quienlodijo.backend.round.dto.RoundResolvedEvent;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -112,24 +116,42 @@ public class GameEngineService {
      * tiene Round) y arranca su temporizador de respuesta. Se apoya en
      * "nº de Rounds ya creadas" como índice sobre la lista de preguntas jugables vigente, lo
      * que se autocorrige si alguna pregunta se descarta más adelante (spec.md §6/§9).
+     *
+     * <p>Si el autor de la siguiente pregunta ya está eliminado, esa pregunta se descarta aquí
+     * mismo y se prueba con la siguiente (spec.md §6/§9, T028) — el índice no cambia porque la
+     * lista de "jugables" se recalcula tras cada descarte, así que sigue apuntando a la
+     * siguiente pregunta válida.
      */
     @Transactional
     public void startNextRound(Room room) {
         List<Question> playable = questionRepository.findByRoomAndDiscardedFalseOrderByPlayOrderAsc(room);
         int roundsCreated = roundRepository.findByRoom(room).size();
-        if (roundsCreated >= playable.size()) {
-            // TODO (Fase 7, T031): no quedan preguntas -> finalizar la partida.
+
+        while (roundsCreated < playable.size()) {
+            Question next = playable.get(roundsCreated);
+            if (next.getAuthorPlayer().isEliminated()) {
+                next.setDiscarded(true);
+                questionRepository.save(next);
+                playable = questionRepository.findByRoomAndDiscardedFalseOrderByPlayOrderAsc(room);
+                continue;
+            }
+
+            Instant endsAt = Instant.now().plusSeconds(ANSWERING_SECONDS);
+            Round round =
+                    Round.builder()
+                            .room(room)
+                            .question(next)
+                            .status(RoundStatus.ANSWERING)
+                            .answeringEndsAt(endsAt)
+                            .build();
+            round = roundRepository.save(round);
+
+            broadcastAnsweringStarted(round);
+            scheduleAnsweringTimeout(round.getId());
             return;
         }
 
-        Question next = playable.get(roundsCreated);
-        Instant endsAt = Instant.now().plusSeconds(ANSWERING_SECONDS);
-        Round round =
-                Round.builder().room(room).question(next).status(RoundStatus.ANSWERING).answeringEndsAt(endsAt).build();
-        round = roundRepository.save(round);
-
-        broadcastAnsweringStarted(round);
-        scheduleAnsweringTimeout(round.getId());
+        // TODO (Fase 7, T031): no quedan preguntas jugables -> finalizar la partida.
     }
 
     /** Guarda la respuesta de un jugador a la ronda actualmente activa de la sala (T017). */
@@ -149,6 +171,9 @@ public class GameEngineService {
                         .findByRoomAndUser(room, user)
                         .orElseThrow(() -> new IllegalStateException("No perteneces a esta sala"));
 
+        if (player.isEliminated()) {
+            throw new IllegalStateException("Estás eliminado, no puedes responder");
+        }
         if (answerRepository.existsByRoundAndPlayer(round, player)) {
             throw new IllegalStateException("Ya has respondido a esta ronda");
         }
@@ -382,9 +407,75 @@ public class GameEngineService {
             roomPlayerRepository.save(pending);
         }
 
-        // TODO (Fase 6, T026): resolver la economía de la ronda (reparto del bote, bonus del
-        // autor, eliminación de jugadores sin saldo) y encadenar la siguiente ronda o el fin
-        // de partida.
+        resolveRound(round);
+    }
+
+    /**
+     * Reparte las fichas de la ronda según spec.md §6 y elimina a quien se quede a 0 (T026/T027):
+     * <ul>
+     *   <li>Nadie acierta: el autor se lleva el bote de fallos completo.</li>
+     *   <li>Todos aciertan: cada acertante recupera su apuesta, sin más.</li>
+     *   <li>Mezcla: cada acertante recupera su apuesta + su parte igualitaria del bote de fallos
+     *       (redondeo hacia abajo, el resto se pierde); el autor recibe +2 fichas por cada
+     *       fallo.</li>
+     * </ul>
+     * Encadena la siguiente ronda al terminar (o el fin de partida, Fase 7).
+     *
+     * <p>Visibilidad de paquete (no {@code private}) a propósito: así el test unitario de la
+     * fórmula económica (T026) puede invocarlo directamente sin depender de todo el flujo de
+     * WebSocket, que ya está cubierto por las pruebas de extremo a extremo de las Fases 4-5.
+     */
+    void resolveRound(Round round) {
+        RoomPlayer author = round.getAuthorPlayer();
+        List<Bet> bets = betRepository.findByRound(round);
+
+        List<Bet> aciertan = bets.stream().filter(b -> b.getCandidate().getId().equals(author.getId())).toList();
+        List<Bet> fallan = bets.stream().filter(b -> !b.getCandidate().getId().equals(author.getId())).toList();
+        int boteFallos = fallan.stream().mapToInt(Bet::getAmount).sum();
+
+        for (Bet bet : aciertan) {
+            bet.setCorrect(true);
+        }
+        for (Bet bet : fallan) {
+            bet.setCorrect(false);
+        }
+
+        if (aciertan.isEmpty()) {
+            // Nadie acierta (incluye el caso sin apuestas en absoluto, boteFallos = 0): el autor
+            // se lleva el bote completo, sin sumar además el bonus fijo por fallo (spec.md §9,
+            // regla única para no duplicar la recompensa).
+            author.setSaldoFichas(author.getSaldoFichas() + boteFallos);
+        } else if (fallan.isEmpty()) {
+            // Todos aciertan: cada uno recupera lo suyo, no hay bote que repartir.
+            for (Bet bet : aciertan) {
+                bet.getBettor().setSaldoFichas(bet.getBettor().getSaldoFichas() + bet.getAmount());
+            }
+        } else {
+            int parte = boteFallos / aciertan.size(); // floor a propósito; el resto se pierde
+            for (Bet bet : aciertan) {
+                bet.getBettor().setSaldoFichas(bet.getBettor().getSaldoFichas() + bet.getAmount() + parte);
+            }
+            author.setSaldoFichas(author.getSaldoFichas() + 2 * fallan.size());
+        }
+
+        betRepository.saveAll(bets);
+        roomPlayerRepository.save(author);
+
+        List<Long> newlyEliminated = new ArrayList<>();
+        for (RoomPlayer player : roomPlayerRepository.findByRoom(round.getRoom())) {
+            if (!player.isEliminated() && player.getSaldoFichas() <= 0) {
+                player.setEliminated(true);
+                roomPlayerRepository.save(player);
+                newlyEliminated.add(player.getUser().getId());
+            }
+        }
+
+        round.setStatus(RoundStatus.RESOLVED);
+        round.setResolvedAt(Instant.now());
+        roundRepository.save(round);
+
+        broadcastRoundResolved(round, bets, newlyEliminated);
+        startNextRound(round.getRoom());
     }
 
     private void scheduleAnsweringTimeout(Long roundId) {
@@ -435,5 +526,32 @@ public class GameEngineService {
                         round.getBettingEndsAt().toString());
         messagingTemplate.convertAndSend(
                 "/topic/rooms/" + round.getRoom().getCode(), new RoomEvent("ROUND_BETTING_STARTED", payload));
+    }
+
+    private void broadcastRoundResolved(Round round, List<Bet> bets, List<Long> newlyEliminatedUserIds) {
+        List<BetResultDto> betResults =
+                bets.stream()
+                        .map(
+                                b ->
+                                        new BetResultDto(
+                                                b.getBettor().getUser().getId(),
+                                                b.getCandidate().getUser().getId(),
+                                                b.getAmount(),
+                                                Boolean.TRUE.equals(b.getCorrect()),
+                                                b.isAutoAssigned()))
+                        .toList();
+        List<PlayerBalanceDto> balances =
+                roomPlayerRepository.findByRoom(round.getRoom()).stream()
+                        .map(p -> new PlayerBalanceDto(p.getUser().getId(), p.getSaldoFichas(), p.isEliminated()))
+                        .toList();
+        var payload =
+                new RoundResolvedEvent(
+                        round.getId(),
+                        round.getAuthorPlayer().getUser().getId(),
+                        betResults,
+                        balances,
+                        newlyEliminatedUserIds);
+        messagingTemplate.convertAndSend(
+                "/topic/rooms/" + round.getRoom().getCode(), new RoomEvent("ROUND_RESOLVED", payload));
     }
 }

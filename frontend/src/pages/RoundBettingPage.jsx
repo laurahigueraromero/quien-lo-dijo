@@ -50,13 +50,16 @@ export default function RoundBettingPage() {
       setError(null);
       setCandidateUserId('');
       setAmount(1);
+    } else if (event.type === 'ROUND_RESOLVED') {
+      // Se cerró la fase de apuestas (todos apostaron o venció el tiempo): T026/T030.
+      navigate(`/rooms/${code}/result`, { replace: true, state: event.payload });
     } else if (event.type === 'ERROR') {
       setError(event.payload.message);
       setSubmitted(false);
     } else if (event.type === 'ROOM_CLOSED') {
       navigate('/', { replace: true });
     }
-  }, [event, navigate]);
+  }, [event, navigate, code]);
 
   useEffect(() => {
     if (!betting) return undefined;
@@ -97,6 +100,8 @@ export default function RoundBettingPage() {
 
         {isAuthor ? (
           <p className="round-hint">Esta es tu respuesta. Espera a ver si consigues despistar al resto…</p>
+        ) : me?.eliminated ? (
+          <p className="round-hint">Estás eliminado/a: sigues viendo la partida, pero ya no puedes apostar.</p>
         ) : submitted ? (
           <p className="round-hint">Apuesta enviada. Esperando al resto de jugadores…</p>
         ) : (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { getRoom } from '../api/roomApi';
 import { useRoomSocket } from '../hooks/useRoomSocket';
 import { useAuth } from '../context/AuthContext';
 import './RoundAnsweringPage.css';
@@ -12,11 +13,12 @@ import './RoundAnsweringPage.css';
  */
 export default function RoundAnsweringPage() {
   const { code } = useParams();
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { event, sendMessage } = useRoomSocket(code, token);
 
+  const [room, setRoom] = useState(null);
   const [round, setRound] = useState(location.state ?? null);
   const [answerText, setAnswerText] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -24,8 +26,24 @@ export default function RoundAnsweringPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let cancelled = false;
+    getRoom(code)
+      .then((state) => {
+        if (!cancelled) setRoom(state);
+      })
+      .catch(() => {
+        // Solo se usa para saber si estoy eliminado (vista de espectador); sin ella se asume que no.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
+  useEffect(() => {
     if (!event) return;
-    if (event.type === 'ROUND_ANSWERING_STARTED') {
+    if (event.type === 'ROOM_STATE') {
+      setRoom(event.payload);
+    } else if (event.type === 'ROUND_ANSWERING_STARTED') {
       setRound(event.payload);
       setAnswerText('');
       setSubmitted(false);
@@ -64,6 +82,7 @@ export default function RoundAnsweringPage() {
   }
 
   const seconds = remainingMs != null ? Math.ceil(remainingMs / 1000) : null;
+  const amEliminated = room?.players.find((p) => p.userId === user?.userId)?.eliminated ?? false;
 
   return (
     <div className="round-page">
@@ -71,7 +90,9 @@ export default function RoundAnsweringPage() {
         {seconds != null && <p className="round-timer">{seconds}s</p>}
         <h1>{round.questionText}</h1>
         {error && <p className="round-error">{error}</p>}
-        {submitted ? (
+        {amEliminated ? (
+          <p className="round-hint">Estás eliminado/a: sigues viendo la partida, pero ya no puedes responder.</p>
+        ) : submitted ? (
           <p className="round-hint">Respuesta enviada. Esperando al resto de jugadores…</p>
         ) : (
           <form onSubmit={handleSubmit}>
