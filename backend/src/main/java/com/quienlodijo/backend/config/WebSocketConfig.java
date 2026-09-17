@@ -17,6 +17,11 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  * - /queue/** también está habilitado en el broker: lo necesitan los destinos de usuario
  *   (@SendToUser, ej. /user/queue/errors en T017), que Spring reescribe internamente a una
  *   cola /queue/**-por-sesión antes de reenviarla al broker.
+ * - Orígenes permitidos: patrón comodín. El navegador manda su propio origen (ej. la IP LAN
+ *   del PC si se accede desde el móvil, o localhost:5173 en dev) y Spring lo valida contra
+ *   esta lista para el handshake, algo independiente de que nginx haga de reverse proxy
+ *   (docker-compose) — de ahí no poder fijar aquí un único host conocido de antemano. Aceptable
+ *   para desarrollo/red local; en un despliegue real conviene acotarlo a los dominios propios.
  *
  * La lógica de salas (T011 en adelante) añadirá los @MessageMapping correspondientes;
  * esta clase solo deja preparado el transporte.
@@ -34,7 +39,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173")
+                .setAllowedOriginPatterns("*")
                 .withSockJS();
     }
 

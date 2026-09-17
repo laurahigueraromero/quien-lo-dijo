@@ -5,8 +5,10 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * CORS para desarrollo local: permite que el frontend Vite (puerto 5173)
- * llame a la API REST cuando no se usa el proxy de Vite (p. ej. pruebas manuales).
+ * CORS para llamadas directas a la API REST sin pasar por un proxy (ej. pruebas manuales,
+ * o el frontend Vite en dev cuando no usa su proxy). Patrón comodín por la misma razón que
+ * en WebSocketConfig: el origen real (IP LAN del móvil, host de docker-compose, etc.) no se
+ * conoce de antemano. Aceptable para desarrollo/red local.
  */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
@@ -14,7 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:5173")
+                .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
                 .allowCredentials(true);
