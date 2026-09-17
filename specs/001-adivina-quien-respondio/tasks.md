@@ -139,22 +139,27 @@ Convenciones:
 
 ---
 
-## Fase 6 — Resolución económica y eliminación (US-6, US-7)
+## Fase 6 — Resolución económica y eliminación ✅ Completada (US-6, US-7)
 
-- **T026.** Implementar `GameEngineService.resolveRound()` exactamente según el pseudocódigo de `plan.md` §6 (bote completo al autor si nadie acierta / reparto a partes iguales + bonus +2 por fallo si hay mezcla / solo recuperación si todos aciertan; redondeo `floor`).
+- **T026. ✅** Implementar `GameEngineService.resolveRound()` exactamente según el pseudocódigo de `plan.md` §6 (bote completo al autor si nadie acierta / reparto a partes iguales + bonus +2 por fallo si hay mezcla / solo recuperación si todos aciertan; redondeo `floor`).
   *Depende de:* T023. *Cubre:* US-6. *Hecho cuando:* tests unitarios cubren los 3 casos (nadie acierta / mezcla / todos aciertan) con los saldos exactos esperados.
+  *Nota:* 4 tests unitarios (`GameEngineServiceResolveRoundTest`, Mockito) cubren los 3 casos económicos + eliminación, con `resolveRound` invocado directamente (visibilidad de paquete a propósito, ver javadoc). Verificado además de extremo a extremo con 3 clientes STOMP reales (caso "todos aciertan": saldos exactos 50/50/50 tal como predice la fórmula).
 
-- **T027.** Marcar `RoomPlayer.eliminated = true` cuando `saldoFichas <= 0` tras resolver; excluir jugadores eliminados de futuras fases `ANSWERING`/`BETTING` (siguen recibiendo eventos, no pueden accionar).
+- **T027. ✅** Marcar `RoomPlayer.eliminated = true` cuando `saldoFichas <= 0` tras resolver; excluir jugadores eliminados de futuras fases `ANSWERING`/`BETTING` (siguen recibiendo eventos, no pueden accionar).
   *Depende de:* T026. *Cubre:* US-7. *Hecho cuando:* un jugador eliminado dejado sin saldo no puede volver a responder ni apostar, pero sigue viendo la partida.
+  *Nota:* encontrado y corregido durante la verificación: `submitAnswer` no comprobaba `eliminated` (sí lo hacía `submitBet` desde la Fase 5) — un jugador eliminado podía seguir respondiendo. Añadida la misma comprobación en ambos.
 
-- **T028.** Regla de pregunta descartada: si el autor de la siguiente `Question` en `playOrder` está `eliminated` en el momento de programarla, marcarla `discarded = true` y pasar directamente a la siguiente (spec §6/§9).
+- **T028. ✅** Regla de pregunta descartada: si el autor de la siguiente `Question` en `playOrder` está `eliminated` en el momento de programarla, marcarla `discarded = true` y pasar directamente a la siguiente (spec §6/§9).
   *Depende de:* T027, T016. *Cubre:* US-7. *Hecho cuando:* la pregunta de un jugador eliminado nunca llega a jugarse y la partida no se bloquea.
+  *Nota:* implementado como un bucle dentro de `startNextRound`: si la siguiente pregunta jugable tiene un autor eliminado, se descarta y se recalcula la lista (que se autocorrige sola), repitiendo hasta encontrar una jugable o agotar la partida.
 
-- **T029.** Evento WS `ROUND_RESOLVED` (autor revelado, detalle de apuestas con acierto/fallo, saldos actualizados, lista de recién eliminados).
+- **T029. ✅** Evento WS `ROUND_RESOLVED` (autor revelado, detalle de apuestas con acierto/fallo, saldos actualizados, lista de recién eliminados).
   *Depende de:* T026, T011. *Hecho cuando:* todos los clientes reciben el mismo resultado consistente tras cada ronda.
+  *Nota:* aquí sí se revela `authorUserId` (la ronda ya ha terminado, el misterio ya no aplica). Verificado con un cliente STOMP real: payload completo con bets/balances/eliminados correctos.
 
-- **T030. [P]** Pantalla React "Resultado de ronda": revela autor, marca aciertos/fallos por jugador, anima/actualiza marcador de fichas, aviso de eliminación si aplica.
+- **T030. [P] ✅** Pantalla React "Resultado de ronda": revela autor, marca aciertos/fallos por jugador, anima/actualiza marcador de fichas, aviso de eliminación si aplica.
   *Depende de:* T007, T012, T029. *Cubre:* US-6, US-7. *Hecho cuando:* el jugador entiende de un vistazo qué ganó/perdió y por qué.
+  *Nota:* `RoundResultPage` en `/rooms/:code/result`; `RoundBettingPage` redirige aquí al recibir `ROUND_RESOLVED`, y desde aquí se navega sola a la siguiente ronda si llega `ROUND_ANSWERING_STARTED`. De paso se añadió una vista de espectador ("estás eliminado/a...") en `RoundAnsweringPage`/`RoundBettingPage` para jugadores ya eliminados, ya que esta fase introduce la eliminación real por primera vez. Build y lint limpios.
 
 ---
 

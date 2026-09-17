@@ -1,0 +1,103 @@
+.result-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px;
+  gap: 16px;
+}
+
+.result-card {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.result-card h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.result-author {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.result-bets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-bets li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.result-bets .correct {
+  color: #1a9850;
+}
+
+.result-bets .incorrect {
+  color: #d73027;
+}
+
+.result-bets .auto-tag {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.result-balances {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.result-balances li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.result-balances .eliminated {
+  color: var(--text);
+  text-decoration: line-through;
+}
+
+.result-eliminated-banner {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.result-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  text-align: center;
+}
