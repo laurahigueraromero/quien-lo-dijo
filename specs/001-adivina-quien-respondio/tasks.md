@@ -113,22 +113,29 @@ Convenciones:
 
 ---
 
-## Fase 5 — Motor de rondas: apostar (US-5)
+## Fase 5 — Motor de rondas: apostar ✅ Completada (US-5)
 
-- **T021.** Al cerrar `ANSWERING`: filtrar `Answer` con `text != null`; si no hay ninguna, resolver la ronda como "sin ganador" (regla añadida en `plan.md` §3) y saltar a Fase 6 con reparto nulo. Si hay al menos una, sortear una al azar → `Round.selectedAnswerId`, `authorPlayerId`; pasar a `BETTING` con `bettingEndsAt` (+30s).
+- **T021. ✅** Al cerrar `ANSWERING`: filtrar `Answer` con `text != null`; si no hay ninguna, resolver la ronda como "sin ganador" (regla añadida en `plan.md` §3) y saltar a Fase 6 con reparto nulo. Si hay al menos una, sortear una al azar → `Round.selectedAnswerId`, `authorPlayerId`; pasar a `BETTING` con `bettingEndsAt` (+30s).
   *Depende de:* T018. *Cubre:* US-5. *Hecho cuando:* se verifica con pruebas que el sorteo es aleatorio y excluye respuestas vacías.
+  *Nota:* "sin ganador" implementado directamente (marca la `Round` `RESOLVED` sin fichas de por medio y encadena `startNextRound`), sin esperar a la Fase 6, ya que es un caso autocontenido que no depende del reparto económico normal.
 
-- **T022.** Handler WS `/app/rooms/{code}/bet`: guarda `Bet` (valida fase `BETTING`, bettor ≠ autor, bettor no eliminado, `1 ≤ amount ≤ saldoActual`, un candidato único, sin apuesta previa en la ronda). Descuenta la apuesta del saldo del jugador en el momento de apostar (`plan.md` §6, nota de implementación).
+- **T022. ✅** Handler WS `/app/rooms/{code}/bet`: guarda `Bet` (valida fase `BETTING`, bettor ≠ autor, bettor no eliminado, `1 ≤ amount ≤ saldoActual`, un candidato único, sin apuesta previa en la ronda). Descuenta la apuesta del saldo del jugador en el momento de apostar (`plan.md` §6, nota de implementación).
   *Depende de:* T021. *Cubre:* US-5. *Hecho cuando:* apuestas inválidas (autor, importe fuera de rango, doble apuesta) son rechazadas con mensaje claro.
+  *Nota:* verificado con 3 clientes STOMP reales: el autor recibe "No puedes apostar en tu propia ronda" (o "la fase ya ha terminado" si el cierre automático ya se disparó); reenvío duplicado protegido igual que en T017 (`existsBy` + captura de `DataIntegrityViolationException`).
 
-- **T023.** Cierre de fase `BETTING`: al cumplirse el timer, a todo jugador activo (no autor, no eliminado) que no haya apostado se le asigna automáticamente la apuesta mínima (1 ficha) sobre un candidato aleatorio (`autoAssigned = true`), tal como exige US-5. Luego dispara la Fase 6.
+- **T023. ✅** Cierre de fase `BETTING`: al cumplirse el timer, a todo jugador activo (no autor, no eliminado) que no haya apostado se le asigna automáticamente la apuesta mínima (1 ficha) sobre un candidato aleatorio (`autoAssigned = true`), tal como exige US-5. Luego dispara la Fase 6.
   *Depende de:* T022. *Cubre:* US-5. *Hecho cuando:* un jugador que no apuesta a tiempo aparece con una apuesta automática registrada.
+  *Nota:* el reparto económico (Fase 6, T026) queda en `TODO` explícito; esta fase deja las apuestas (manuales y automáticas) completas y persistidas. Un bug real de concurrencia apareció y se corrigió aquí (ver más abajo) — comparte la misma guarda idempotente (`Set` atómico) que T018.
 
-- **T024.** Evento WS `ROUND_BETTING_STARTED` (respuesta mostrada, lista de candidatos, `bettingEndsAt`), enviado a todos menos implícitamente accionable solo para no-autores; al autor se le indica su rol de "espera" vía el propio evento (el cliente decide la vista según `myPlayerId == round.authorPlayerId`).
+- **T024. ✅** Evento WS `ROUND_BETTING_STARTED` (respuesta mostrada, lista de candidatos, `bettingEndsAt`), enviado a todos menos implícitamente accionable solo para no-autores; al autor se le indica su rol de "espera" vía el propio evento (el cliente decide la vista según `myPlayerId == round.authorPlayerId`).
   *Depende de:* T021, T011. *Hecho cuando:* el autor ve pantalla de espera y el resto ve el formulario de apuesta.
+  *Nota:* el evento **nunca revela quién es el autor** — `candidateUserIds` son los ids de `User` de todos los jugadores salvo el autor; el propio cliente deduce "soy el autor" cuando su `userId` NO aparece en esa lista, en vez de recibir un flag explícito.
 
-- **T025. [P]** Pantalla React "Apostar": respuesta mostrada, selector de candidato (jugadores de la sala excepto uno mismo), input/slider de cantidad (máximo = saldo propio), cuenta atrás. Pantalla de espera alternativa para el autor.
+- **T025. [P] ✅** Pantalla React "Apostar": respuesta mostrada, selector de candidato (jugadores de la sala excepto uno mismo), input/slider de cantidad (máximo = saldo propio), cuenta atrás. Pantalla de espera alternativa para el autor.
   *Depende de:* T007, T012, T024. *Cubre:* US-5. *Hecho cuando:* un jugador apuesta y ve confirmación; el autor no ve nunca el formulario de apuesta en su propia ronda.
+  *Nota:* `RoundBettingPage` en `/rooms/:code/bet`; `RoundAnsweringPage` redirige aquí al recibir `ROUND_BETTING_STARTED`. Pide el snapshot de la sala por REST para mostrar nombres de usuario y el saldo propio (el evento WS solo trae ids). Build y lint limpios.
+
+**Bug real de concurrencia encontrado y corregido durante la verificación:** con 3 clientes STOMP enviando su respuesta/apuesta prácticamente a la vez, la comprobación "¿han respondido/apostado ya todos?" (una consulta `COUNT` dentro de cada transacción individual) puede no ver todavía el commit de una transacción hermana bajo `READ_COMMITTED` — el resultado no es incorrecto, pero ninguna de las peticiones concurrentes llega a disparar el cierre de fase, que entonces solo se produciría al cumplirse el timeout completo (60s/30s) en vez de al instante. Solución aplicada: además de la comprobación inmediata, se programa una segunda comprobación de seguridad ~300ms después (misma guarda idempotente que ya evita cerrar dos veces), que sí ve todos los commits ya aplicados. Verificado enviando las 3 respuestas de golpe, sin ningún retraso artificial entre ellas.
 
 ---
 

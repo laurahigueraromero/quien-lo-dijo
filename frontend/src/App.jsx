@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import QuestionSubmissionPage from './pages/QuestionSubmissionPage';
 import RegisterPage from './pages/RegisterPage';
 import RoundAnsweringPage from './pages/RoundAnsweringPage';
+import RoundBettingPage from './pages/RoundBettingPage';
 import WaitingRoomPage from './pages/WaitingRoomPage';
 import './App.css';
 
@@ -20,6 +21,7 @@ function App() {
           <Route path="/rooms/:code" element={<WaitingRoomPage />} />
           <Route path="/rooms/:code/questions" element={<QuestionSubmissionPage />} />
           <Route path="/rooms/:code/play" element={<RoundAnsweringPage />} />
+          <Route path="/rooms/:code/bet" element={<RoundBettingPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
