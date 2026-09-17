@@ -46,22 +46,27 @@ Convenciones:
 
 ---
 
-## Fase 2 — Gestión de salas (US-1, US-2)
+## Fase 2 — Gestión de salas ✅ Completada (US-1, US-2)
 
-- **T008.** Endpoint `POST /api/rooms` (crea sala en `WAITING`, genera `code` único, guarda `questionsPerPlayer`) y `GET /api/rooms/{code}` (snapshot).
+- **T008. ✅** Endpoint `POST /api/rooms` (crea sala en `WAITING`, genera `code` único, guarda `questionsPerPlayer`) y `GET /api/rooms/{code}` (snapshot).
   *Depende de:* T006. *Cubre:* US-1, US-2. *Hecho cuando:* un usuario autenticado crea una sala y recibe su código.
+  *Nota:* código de 6 caracteres sin I/O/0/1 (evita confusiones al leerlo/escribirlo); el host se añade automáticamente como `RoomPlayer` al crear.
 
-- **T009.** Endpoint `POST /api/rooms/{code}/join` (añade `RoomPlayer` con saldo inicial 50, valida sala en `WAITING`).
+- **T009. ✅** Endpoint `POST /api/rooms/{code}/join` (añade `RoomPlayer` con saldo inicial 50, valida sala en `WAITING`).
   *Depende de:* T008. *Cubre:* US-1. *Hecho cuando:* varios usuarios distintos pueden unirse a la misma sala por código.
+  *Nota:* unirse dos veces es idempotente (no duplica `RoomPlayer`); unirse a una sala ya iniciada da 409.
 
-- **T010.** Endpoint `POST /api/rooms/{code}/start` (solo host, valida mínimo 3 jugadores, pasa a `COLLECTING_QUESTIONS`) y `DELETE /api/rooms/{code}` (host cierra sala en `WAITING`).
+- **T010. ✅** Endpoint `POST /api/rooms/{code}/start` (solo host, valida mínimo 3 jugadores, pasa a `COLLECTING_QUESTIONS`) y `DELETE /api/rooms/{code}` (host cierra sala en `WAITING`).
   *Depende de:* T009. *Cubre:* US-1, US-2, spec §9 (anfitrión). *Hecho cuando:* solo el host puede iniciar/cerrar, y no se puede iniciar por debajo del mínimo.
+  *Nota:* verificado con curl: 400 con &lt;3 jugadores, 403 si no es el host, 200+`COLLECTING_QUESTIONS` con 3 jugadores.
 
-- **T011. [P]** Canal WebSocket base: al conectar a `/topic/rooms/{code}`, el servidor emite `ROOM_STATE` con jugadores actuales y status; se reemite en cada `join`/cambio de config.
+- **T011. [P] ✅** Canal WebSocket base: al conectar a `/topic/rooms/{code}`, el servidor emite `ROOM_STATE` con jugadores actuales y status; se reemite en cada `join`/cambio de config.
   *Depende de:* T006, T009. *Hecho cuando:* dos clientes conectados a la misma sala ven en tiempo real cuando un tercero se une.
+  *Nota de diseño:* implementado como snapshot inicial por REST (`GET /api/rooms/{code}`) + broadcast por WS a partir de ahí, en vez de emitir el estado en el propio evento de conexión STOMP (evita el matiz de que `/topic/**` no pasa por los `@SubscribeMapping` de la app al usar el broker prefix por defecto). Verificado con un cliente STOMP real (`@stomp/stompjs` sobre WebSocket nativo): al hacer `join`, el evento `{"type":"ROOM_STATE",...}` llega correctamente a un cliente ya suscrito.
 
-- **T012. [P]** Pantallas React: Lobby (crear sala con `questionsPerPlayer`, unirse por código) y Sala de espera (lista de jugadores en vivo, botón "Iniciar" solo para host).
+- **T012. [P] ✅** Pantallas React: Lobby (crear sala con `questionsPerPlayer`, unirse por código) y Sala de espera (lista de jugadores en vivo, botón "Iniciar" solo para host).
   *Depende de:* T007, T011. *Cubre:* US-1, US-2. *Hecho cuando:* 3 navegadores/pestañas distintas pueden crear, unirse y ver la lista actualizarse en vivo.
+  *Nota:* `useRoomSocket` (hook autocontenido, ver comentario en el propio archivo sobre la simplificación frente al `RoomSocketContext` de `plan.md` §8) + `LobbyPage`/`WaitingRoomPage`. Verificado: build/lint limpios, creación de sala confirmada end-to-end a través del proxy real de Vite (puerto 5173), y el hand-shake de SockJS (`/ws/info`) proxifica correctamente. La interacción visual en varias pestañas queda pendiente de que el usuario la abra en el navegador.
 
 ---
 
