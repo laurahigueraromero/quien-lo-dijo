@@ -46,10 +46,13 @@ export default function QuestionSubmissionPage() {
     if (!event) return;
     if (event.type === 'ROOM_STATE') {
       setRoom(event.payload);
+    } else if (event.type === 'ROUND_ANSWERING_STARTED') {
+      // Todos han enviado sus preguntas y ha arrancado la primera ronda (Fase 4, T016/T020).
+      navigate(`/rooms/${code}/play`, { replace: true, state: event.payload });
     } else if (event.type === 'ROOM_CLOSED') {
       navigate('/', { replace: true });
     }
-  }, [event, navigate]);
+  }, [event, navigate, code]);
 
   async function handleSubmit(formEvent) {
     formEvent.preventDefault();

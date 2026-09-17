@@ -86,22 +86,30 @@ Convenciones:
 
 ---
 
-## Fase 4 — Motor de rondas: responder (US-4)
+## Fase 4 — Motor de rondas: responder ✅ Completada (US-4)
 
-- **T016.** `GameEngineService`: al entrar en `IN_PROGRESS` (o al resolver una ronda), selecciona la siguiente `Question` no `discarded` según `playOrder`, crea `Round` en `ANSWERING`, calcula `answeringEndsAt` (+60s) y programa el timer (`TaskScheduler`).
+- **T016. ✅** `GameEngineService`: al entrar en `IN_PROGRESS` (o al resolver una ronda), selecciona la siguiente `Question` no `discarded` según `playOrder`, crea `Round` en `ANSWERING`, calcula `answeringEndsAt` (+60s) y programa el timer (`TaskScheduler`).
   *Depende de:* T014, T004. *Cubre:* US-4. *Hecho cuando:* al iniciar la partida se crea la primera ronda con temporizador activo.
+  *Nota:* el índice "siguiente pregunta" se calcula como nº de `Round` ya creadas sobre la lista de preguntas jugables vigente (no descartadas) — se autocorrige si una pregunta se descarta más adelante (Fase 6+). `TaskScheduler` añadido como bean explícito (`SchedulingConfig`).
 
-- **T017.** Handler WS `/app/rooms/{code}/answer`: guarda `Answer` del jugador (una por ronda), valida fase `ANSWERING` y que no haya respondido ya.
+- **T017. ✅** Handler WS `/app/rooms/{code}/answer`: guarda `Answer` del jugador (una por ronda), valida fase `ANSWERING` y que no haya respondido ya.
   *Depende de:* T016. *Cubre:* US-4. *Hecho cuando:* cada jugador puede enviar su respuesta una sola vez por ronda.
+  *Nota:* verificado con 3 clientes STOMP reales respondiendo concurrentemente. Dos bugs reales encontrados y corregidos durante la verificación (no eran parte del plan original, documentados aquí en vez de preguntar):
+  1. Una excepción en un `@MessageMapping` solo quedaba en el log del servidor — el cliente nunca se enteraba de que su acción había fallado. Añadido `@MessageExceptionHandler` + `@SendToUser("/queue/errors")` en `RoundWebSocketController`.
+  2. Ese `@SendToUser` no llegaba a ningún sitio: el broker solo tenía habilitado el prefijo `/topic` (`enableSimpleBroker("/topic")`); los destinos de usuario se reescriben internamente a `/queue/**`, que no estaba habilitado. Corregido a `enableSimpleBroker("/topic", "/queue")`. De paso se endureció `StompAuthChannelInterceptor` para reconstruir el `Message` tras mutar el `accessor` (mutar sin reconstruir no garantiza que el Principal quede asociado a la sesión).
+  3. Además, el `existsByRoundAndPlayer` de aplicación no es atómico con el insert: dos envíos duplicados casi simultáneos pueden saltárselo y chocar contra la restricción única de BD; se captura `DataIntegrityViolationException` y se traduce al mismo mensaje limpio.
 
-- **T018.** Cierre de fase `ANSWERING`: al cumplirse el timer o al responder el último jugador activo, se cierra la fase (sin más respuestas admitidas) y se dispara la Fase 5.
+- **T018. ✅** Cierre de fase `ANSWERING`: al cumplirse el timer o al responder el último jugador activo, se cierra la fase (sin más respuestas admitidas) y se dispara la Fase 5.
   *Depende de:* T017. *Cubre:* US-4. *Hecho cuando:* la fase se cierra tanto por timeout como por respuesta completa de todos, sin condición de carrera (última respuesta y timeout casi simultáneos).
+  *Nota:* guarda anti-doble-cierre implementada con un `Set<Long>` (`ConcurrentHashMap.newKeySet()`) de ids de ronda ya cerradas — `Set.add` es atómico, así que si el timeout y la última respuesta llegan casi a la vez, solo uno de los dos ejecuta el cierre. Alcance de esta fase: cierra `ANSWERING` y cancela el timer; el sorteo de la respuesta y el paso a `BETTING` quedan en `TODO` explícito para T021 (Fase 5), con una nota de implementación sobre la auto-invocación y `@Transactional` para quien lo añada. Verificado el cierre por "todos respondieron" con 3 jugadores reales; el cierre por timeout (60s) no se esperó en tiempo real, se verificó por revisión de código ya que comparte la misma guarda.
 
-- **T019.** Evento WS `ROUND_ANSWERING_STARTED` (pregunta + `answeringEndsAt`) emitido a toda la sala al crear cada ronda.
+- **T019. ✅** Evento WS `ROUND_ANSWERING_STARTED` (pregunta + `answeringEndsAt`) emitido a toda la sala al crear cada ronda.
   *Depende de:* T016, T011. *Hecho cuando:* todos los clientes ven la misma pregunta y cuenta atrás sincronizada.
+  *Nota:* `answeringEndsAt` viaja como String ISO-8601 (no como `Instant` serializado por Jackson) para no depender de que el conversor de mensajes STOMP tenga registrado el módulo JSR-310.
 
-- **T020. [P]** Pantalla React "Responder": muestra pregunta, input de texto libre, cuenta atrás basada en `answeringEndsAt` (no en segundos relativos, `plan.md` §5).
+- **T020. [P] ✅** Pantalla React "Responder": muestra pregunta, input de texto libre, cuenta atrás basada en `answeringEndsAt` (no en segundos relativos, `plan.md` §5).
   *Depende de:* T007, T012, T019. *Cubre:* US-4. *Hecho cuando:* el jugador envía su respuesta y ve deshabilitado el formulario tras enviar o al expirar el tiempo.
+  *Nota:* `RoundAnsweringPage` en `/rooms/:code/play`; `QuestionSubmissionPage` redirige aquí al recibir `ROUND_ANSWERING_STARTED`. `useRoomSocket` ampliado con `sendMessage` (publicar a `/app/...`) y con la suscripción a `/user/queue/errors` para mostrar errores del propio jugador (ej. reenvío duplicado). Build y lint limpios.
 
 ---
 

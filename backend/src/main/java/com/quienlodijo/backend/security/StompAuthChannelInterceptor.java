@@ -7,6 +7,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
@@ -36,6 +37,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                 if (jwtService.isValid(token)) {
                     Long userId = jwtService.extractUserId(token);
                     accessor.setUser((Principal) userId::toString);
+                    // Reconstruir el Message con las cabeceras ya mutadas: mutar el accessor no
+                    // basta por sí solo para garantizar que el Principal quede asociado a la
+                    // sesión (lo necesitan los destinos de usuario, ej. @SendToUser en T017).
+                    return MessageBuilder.createMessage(message.getPayload(), accessor.getMessageHeaders());
                 }
             }
         }

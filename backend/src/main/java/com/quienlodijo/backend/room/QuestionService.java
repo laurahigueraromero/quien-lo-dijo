@@ -8,6 +8,7 @@ import com.quienlodijo.backend.domain.User;
 import com.quienlodijo.backend.repository.QuestionRepository;
 import com.quienlodijo.backend.repository.RoomPlayerRepository;
 import com.quienlodijo.backend.room.dto.RoomStateResponse;
+import com.quienlodijo.backend.round.GameEngineService;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Collections;
@@ -31,13 +32,18 @@ public class QuestionService {
     private final RoomService roomService;
     private final RoomPlayerRepository roomPlayerRepository;
     private final QuestionRepository questionRepository;
+    private final GameEngineService gameEngineService;
     private final SecureRandom random = new SecureRandom();
 
     public QuestionService(
-            RoomService roomService, RoomPlayerRepository roomPlayerRepository, QuestionRepository questionRepository) {
+            RoomService roomService,
+            RoomPlayerRepository roomPlayerRepository,
+            QuestionRepository questionRepository,
+            GameEngineService gameEngineService) {
         this.roomService = roomService;
         this.roomPlayerRepository = roomPlayerRepository;
         this.questionRepository = questionRepository;
+        this.gameEngineService = gameEngineService;
     }
 
     @Transactional
@@ -95,6 +101,6 @@ public class QuestionService {
         roomService.saveRoom(room);
         roomService.broadcastRoomState(room);
 
-        // TODO (Fase 4, T016): arrancar aquí la primera Round (fase ANSWERING) del motor de rondas.
+        gameEngineService.startNextRound(room);
     }
 }
