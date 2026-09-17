@@ -2,23 +2,3 @@
   display: flex;
   flex-direction: column;
 }
-
-.lobby-page {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px 16px;
-}
-
-.lobby-page button {
-  font: inherit;
-  padding: 10px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-h);
-  cursor: pointer;
-}
