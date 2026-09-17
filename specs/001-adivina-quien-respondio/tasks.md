@@ -30,16 +30,19 @@ Convenciones:
 
 ---
 
-## Fase 1 — Autenticación (soporta todas las historias, es prerequisito transversal)
+## Fase 1 — Autenticación ✅ Completada (soporta todas las historias, es prerequisito transversal)
 
-- **T005.** Endpoint `POST /api/auth/register` (alta de `User` con password BCrypt) + `POST /api/auth/login` (devuelve JWT).
+- **T005. ✅** Endpoint `POST /api/auth/register` (alta de `User` con password BCrypt) + `POST /api/auth/login` (devuelve JWT).
   *Depende de:* T004. *Hecho cuando:* un usuario puede registrarse y loguearse, y el login devuelve un token válido.
+  *Nota:* verificado con curl end-to-end: 201 en registro, 200 con token en login, 409 en username duplicado, 401 en password incorrecta.
 
-- **T006.** Filtro/interceptor JWT para proteger endpoints REST (`Authorization: Bearer`) y autenticar el handshake WebSocket (`plan.md` §7).
+- **T006. ✅** Filtro/interceptor JWT para proteger endpoints REST (`Authorization: Bearer`) y autenticar el handshake WebSocket (`plan.md` §7).
   *Depende de:* T005. *Hecho cuando:* un endpoint protegido rechaza peticiones sin token válido, y una conexión STOMP autenticada puede identificar al `User`.
+  *Nota:* `JwtAuthenticationFilter` (REST) y `StompAuthChannelInterceptor` (frame CONNECT) implementados; verificado que una ruta protegida sin token da 403 y con token pasa la autenticación (404 por no existir aún, no 401/403). Encontrado y corregido un caso borde: `/error` debe estar en `permitAll()` o Spring Security pisa con 403 el código real (409/401) de los `ResponseStatusException`.
 
-- **T007. [P]** Pantallas React de Registro y Login + almacenamiento del token (memoria/contexto, no localStorage persistente si se prioriza seguridad) + cliente API con interceptor que añade el header.
+- **T007. [P] ✅** Pantallas React de Registro y Login + almacenamiento del token (memoria/contexto, no localStorage persistente si se prioriza seguridad) + cliente API con interceptor que añade el header.
   *Depende de:* T002. *Hecho cuando:* un usuario puede registrarse y loguearse desde la UI y navegar a una pantalla protegida (Lobby).
+  *Nota:* `AuthContext` + `ProtectedRoute` + `LoginPage`/`RegisterPage` + placeholder `LobbyPage`. Verificado con `npm run build` y `npm run lint` limpios, y proxy `/api` confirmado sirviendo `/api/health` a través de Vite; la comprobación manual en el navegador queda para cuando se abra la app.
 
 ---
 
