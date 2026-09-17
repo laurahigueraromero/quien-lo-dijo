@@ -30,6 +30,9 @@ export default function RoundAnsweringPage() {
       setAnswerText('');
       setSubmitted(false);
       setError(null);
+    } else if (event.type === 'ROUND_BETTING_STARTED') {
+      // Todos han respondido (o se acabó el tiempo): arranca la fase de apuestas (Fase 5, T025).
+      navigate(`/rooms/${code}/bet`, { replace: true, state: event.payload });
     } else if (event.type === 'ERROR') {
       // Ej. "Ya has respondido a esta ronda": deshacemos el "enviado" para que
       // el jugador vea que no se guardó y pueda intentarlo de nuevo (T017).
@@ -38,7 +41,7 @@ export default function RoundAnsweringPage() {
     } else if (event.type === 'ROOM_CLOSED') {
       navigate('/', { replace: true });
     }
-  }, [event, navigate]);
+  }, [event, navigate, code]);
 
   useEffect(() => {
     if (!round) return undefined;

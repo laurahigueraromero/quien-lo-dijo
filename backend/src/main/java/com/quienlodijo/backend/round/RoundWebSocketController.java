@@ -1,6 +1,7 @@
 package com.quienlodijo.backend.round;
 
 import com.quienlodijo.backend.round.dto.AnswerRequest;
+import com.quienlodijo.backend.round.dto.BetRequest;
 import com.quienlodijo.backend.round.dto.WsErrorResponse;
 import java.security.Principal;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -27,6 +28,11 @@ public class RoundWebSocketController {
     @MessageMapping("/rooms/{code}/answer")
     public void answer(@DestinationVariable String code, @Payload AnswerRequest request, Principal principal) {
         gameEngineService.submitAnswer(code, Long.valueOf(principal.getName()), request.text());
+    }
+
+    @MessageMapping("/rooms/{code}/bet")
+    public void bet(@DestinationVariable String code, @Payload BetRequest request, Principal principal) {
+        gameEngineService.submitBet(code, Long.valueOf(principal.getName()), request.candidateUserId(), request.amount());
     }
 
     /**
