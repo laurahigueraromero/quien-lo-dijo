@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Estado interno de Claude Code (no forma parte del proyecto)
+.claude/
