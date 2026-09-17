@@ -1,5 +1,5 @@
 import { Client } from '@stomp/stompjs';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import SockJS from 'sockjs-client';
 
 /**
@@ -17,6 +17,7 @@ import SockJS from 'sockjs-client';
 export function useRoomSocket(code, token) {
   const [event, setEvent] = useState(null);
   const [connected, setConnected] = useState(false);
+  const clientRef = useRef(null);
 
   useEffect(() => {
     if (!code || !token) {
@@ -34,15 +35,33 @@ export function useRoomSocket(code, token) {
       client.subscribe(`/topic/rooms/${code}`, (message) => {
         setEvent(JSON.parse(message.body));
       });
+      // Errores de las acciones que este jugador dispara (ej. respuesta duplicada, T017);
+      // solo le llegan a él, vía la cola de usuario que rellena @SendToUser en el backend.
+      client.subscribe('/user/queue/errors', (message) => {
+        setEvent({ type: 'ERROR', payload: JSON.parse(message.body) });
+      });
     };
     client.onWebSocketClose = () => setConnected(false);
 
     client.activate();
+    clientRef.current = client;
 
     return () => {
       client.deactivate();
+      clientRef.current = null;
     };
   }, [code, token]);
 
-  return { event, connected };
+  // Envía una acción de cliente a servidor a /app/rooms/{code}/{action} (ej. "answer", T017/T020).
+  const sendMessage = useCallback(
+    (action, body) => {
+      clientRef.current?.publish({
+        destination: `/app/rooms/${code}/${action}`,
+        body: JSON.stringify(body),
+      });
+    },
+    [code],
+  );
+
+  return { event, connected, sendMessage };
 }

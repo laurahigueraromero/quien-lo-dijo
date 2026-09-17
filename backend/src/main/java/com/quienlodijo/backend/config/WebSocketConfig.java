@@ -14,6 +14,9 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  * - Los eventos de servidor a cliente se publican en /topic/** (ej. /topic/rooms/{code}).
  * - Las acciones de cliente a servidor llegan con prefijo /app/** (ej. /app/rooms/{code}/answer).
  * - El frame CONNECT se autentica con JWT vía StompAuthChannelInterceptor (T006).
+ * - /queue/** también está habilitado en el broker: lo necesitan los destinos de usuario
+ *   (@SendToUser, ej. /user/queue/errors en T017), que Spring reescribe internamente a una
+ *   cola /queue/**-por-sesión antes de reenviarla al broker.
  *
  * La lógica de salas (T011 en adelante) añadirá los @MessageMapping correspondientes;
  * esta clase solo deja preparado el transporte.
@@ -37,7 +40,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/topic");
+        registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
     }
 
