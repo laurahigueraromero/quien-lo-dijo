@@ -11,19 +11,22 @@ Convenciones:
 
 ---
 
-## Fase 0 — Setup del proyecto
+## Fase 0 — Setup del proyecto ✅ Completada
 
-- **T001.** Inicializar proyecto backend Spring Boot (Web, Security, WebSocket, Data JPA, Validation) con Gradle/Maven, perfil `dev` con base de datos H2 en memoria y perfil `prod`-ready con PostgreSQL.
+- **T001. ✅** Inicializar proyecto backend Spring Boot (Web, Security, WebSocket, Data JPA, Validation) con Gradle/Maven, perfil `dev` con base de datos H2 en memoria y perfil `prod`-ready con PostgreSQL.
   *Depende de:* nada. *Hecho cuando:* `./gradlew bootRun` (o equivalente) levanta la app y responde en un endpoint de salud (`/actuator/health` o similar).
+  *Nota:* generado con Spring Boot 4.1.1 / Java 21 (toolchain con auto-provisioning vía plugin Foojay); endpoint de verificación en `/api/health` (ver T003).
 
-- **T002. [P]** Inicializar proyecto frontend React (Vite) con React Router, cliente `@stomp/stompjs` + `sockjs-client`, y estructura de carpetas (`pages/`, `components/`, `context/`, `api/`).
+- **T002. [P] ✅** Inicializar proyecto frontend React (Vite) con React Router, cliente `@stomp/stompjs` + `sockjs-client`, y estructura de carpetas (`pages/`, `components/`, `context/`, `api/`).
   *Depende de:* nada. *Hecho cuando:* `npm run dev` sirve una pantalla en blanco navegable con routing básico.
 
-- **T003.** Configurar CORS y proxy dev (frontend → backend) para que REST y WebSocket funcionen en local sin fricción.
+- **T003. ✅** Configurar CORS y proxy dev (frontend → backend) para que REST y WebSocket funcionen en local sin fricción.
   *Depende de:* T001, T002. *Hecho cuando:* el frontend puede hacer una petición REST de prueba al backend sin error de CORS.
+  *Nota:* verificado end-to-end (`curl http://localhost:5173/api/health` a través del proxy de Vite devuelve `200 {"status":"ok"}`). Seguridad de Spring configurada en modo `permitAll()` temporal hasta la Fase 1 (JWT).
 
-- **T004.** Crear las entidades JPA descritas en `plan.md` §2 (`User`, `Room`, `RoomPlayer`, `Question`, `Round`, `Answer`, `Bet`, `GameResult`) con sus repositorios Spring Data.
+- **T004. ✅** Crear las entidades JPA descritas en `plan.md` §2 (`User`, `Room`, `RoomPlayer`, `Question`, `Round`, `Answer`, `Bet`, `GameResult`) con sus repositorios Spring Data.
   *Depende de:* T001. *Hecho cuando:* el esquema se genera correctamente (Flyway/Hibernate DDL) y hay un repositorio JPA por entidad.
+  *Nota:* verificado arrancando la app: Hibernate generó las 8 tablas con todas las FKs y restricciones únicas sin errores.
 
 ---
 
